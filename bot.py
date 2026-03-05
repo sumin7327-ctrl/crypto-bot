@@ -630,7 +630,7 @@ def main():
             scheduler.start(int(chat_id), application)
             await application.bot.send_message(
                 chat_id=int(chat_id),
-                text="🤖 *봇이 시작되었습니다!\n자동매매가 자동으로 켜졌어요 ✅",
+                text="🤖 *봇이 시작되었습니다!*\n자동매매가 자동으로 켜졌어요 ✅",
                 parse_mode="Markdown"
             )
 
