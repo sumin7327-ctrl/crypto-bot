@@ -19,7 +19,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-LOG_FILE = Path.home() / "Downloads" / "crypto_bot_v2" / "trade_log.csv"
+LOG_FILE = Path("/app/trade_log.csv") if Path("/app").exists() else Path.home() / "Downloads" / "crypto_bot_v2" / "trade_log.csv"
 FEE_RATE = 0.0005  # 업비트 수수료 0.05%
 
 
