@@ -624,6 +624,17 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
 
     logger.info("🤖 업비트 자동매매 봇 v2 시작!")
+    async def post_init(application):
+        chat_id = os.getenv("ALLOWED_USER_IDS", "").split(",")[0].strip()
+        if chat_id:
+            scheduler.start(int(chat_id), application)
+            await application.bot.send_message(
+                chat_id=int(chat_id),
+                text="🤖 *봇이 시작되었습니다!\n자동매매가 자동으로 켜졌어요 ✅",
+                parse_mode="Markdown"
+            )
+
+    app.post_init = post_init
     app.run_polling(
         allowed_updates=Update.ALL_TYPES,
         drop_pending_updates=True,
