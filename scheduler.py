@@ -24,6 +24,9 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+KST = ZoneInfo("Asia/Seoul")
 
 logger = logging.getLogger(__name__)
 
@@ -287,7 +290,7 @@ class TradingScheduler:
             self.stop()
             return
 
-        now = datetime.now().strftime("%H:%M")
+        now = datetime.now(KST).strftime("%H:%M")
 
         for market in markets:
             try:
@@ -312,8 +315,8 @@ class TradingScheduler:
                 emoji = {"BUY": "🟢", "SELL": "🔴", "HOLD": "⚪"}.get(action, "⚪")
                 log_msg = (
                     f"{emoji} [{now}] {market}\n"
-                    f"가격: {self._fmt_won(current_price)} | 목표: {self._fmt_won(target)} | 손절: {self._fmt_won(stop_loss)}\n"
-                    f"AI 신호: {action} ({confidence}%)\n"
+                    f"가격: {WON}{current_price:,.0f} | 목표: {WON}{target:,.0f} | 손절: {WON}{stop_loss:,.0f}\n"
+                    f"신호: {action} ({confidence}%)\n"
                     f"이유: {reason}"
                 )
 
