@@ -191,13 +191,15 @@ class TradingScheduler:
                 reason     = signal.get("reason", "")
                 target     = signal.get("target_price", 0)
                 stop_loss  = signal.get("stop_loss", 0)
+                ticker = await self.upbit.get_ticker(market)
+                current_price = float(ticker["trade_price"])
 
-                emoji = {"BUY": "🟢", "SELL": "🔴", "HOLD": "⚪"}.get(action, "⚪")
+                emoji = {"BUY": "🟢", "SELL": "🔴", "HOLD": "⚪"}.get(action, "🟡")
                 log_msg = (
                     f"{emoji} *[{now}] {market}*\n"
+                    f"가격: `₩{current_price:,.0f}` | f"목표가: `₩{target:,.0f}` | 손절가: `₩{stop_loss:,.0f}`"
                     f"AI 신호: `{action}` ({confidence}%)\n"
-                    f"이유: {reason}\n"
-                    f"목표가: `₩{target:,.0f}` | 손절가: `₩{stop_loss:,.0f}`"
+                    f"이유: {reason}"
                 )
 
                 if action == "HOLD" or confidence < min_conf:
@@ -224,8 +226,7 @@ class TradingScheduler:
                     await asyncio.sleep(1)
                     continue
 
-                ticker      = await self.upbit.get_ticker(market)
-                order_price = ticker["trade_price"]
+                order_price = current_price
 
                 if action == "BUY":
                     order    = await self.upbit.market_order_buy(market, trade_amount)
