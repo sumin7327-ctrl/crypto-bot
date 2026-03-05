@@ -64,7 +64,7 @@ class TradingScheduler:
     async def _send(self, text: str):
         if self._app and self._chat_id:
             await self._app.bot.send_message(
-                chat_id=self._chat_id, text=text, parse_mode="Markdown"
+                chat_id=self._chat_id, text=text
             )
 
     async def _get_daily_trend(self, market: str) -> str:
