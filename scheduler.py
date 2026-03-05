@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 LOG_FILE = Path("/app/trade_log.csv") if Path("/app").exists() else Path.home() / "Downloads" / "crypto_bot_v2" / "trade_log.csv"
 FEE_RATE = 0.0005  # 업비트 수수료 0.05%
+WON = "\u20A9"
 
 
 class TradingScheduler:
@@ -197,7 +198,7 @@ class TradingScheduler:
                 emoji = {"BUY": "🟢", "SELL": "🔴", "HOLD": "⚪"}.get(action, "🟡")
                 log_msg = (
                     f"{emoji} *[{now}] {market}*\n"
-                    f"가격: `₩{current_price:,.0f}` | f"목표가: `₩{target:,.0f}` | 손절가: `₩{stop_loss:,.0f}`"
+                    f"가격: `{WON}{current_price:,.0f}` | 목표: `{WON}{target:,.0f}` | 손절: `{WON}{stop_loss:,.0f}`\n"
                     f"AI 신호: `{action}` ({confidence}%)\n"
                     f"이유: {reason}"
                 )
