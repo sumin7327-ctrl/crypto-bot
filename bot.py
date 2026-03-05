@@ -56,8 +56,8 @@ def main_keyboard():
          InlineKeyboardButton("🤖 AI 분석",          callback_data="analyze")],
         [InlineKeyboardButton("💼 잔고/수익률",       callback_data="portfolio"),
          InlineKeyboardButton("📋 미체결 주문",       callback_data="orders")],
-        [InlineKeyboardButton("🚨 거래량 급등 감지",  callback_data="hotcoins"),
-         InlineKeyboardButton("📰 뉴스/공시",         callback_data="news")],
+        [InlineKeyboardButton("📊 호가/체결강도",    callback_data="orderbook"),
+         InlineKeyboardButton("🚨 거래량 급등 감지",  callback_data="hotcoins")],
         [InlineKeyboardButton("🟢 자동매매 ON",       callback_data="auto_on"),
          InlineKeyboardButton("🔴 자동매매 OFF",      callback_data="auto_off")],
         [InlineKeyboardButton("⚙️ 설정",             callback_data="settings")],
@@ -112,6 +112,51 @@ async def analyze(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text(result, parse_mode="Markdown")
     except Exception as e:
         await msg.edit_text(f"❌ 분석 실패: {e}")
+
+
+async def _get_orderbook_text(market: str) -> str:
+    ob  = await upbit.get_orderbook_analysis(market)
+    ts  = await upbit.get_trade_strength(market)
+
+    imbalance     = ob["imbalance"]
+    imbal_emoji   = "🟢 매수 우세" if imbalance > 1.2 else ("🔴 매도 우세" if imbalance < 0.8 else "⚪ 균형")
+    strength_emoji = "🟢" if ts["strength"] > 55 else ("🔴" if ts["strength"] < 45 else "⚪")
+
+    lines = [
+        f"📊 *{market} 호가/유동성 분석*\n",
+        f"💰 최우선 매도: `₩{ob['best_ask']:,.0f}`",
+        f"💰 최우선 매수: `₩{ob['best_bid']:,.0f}`",
+        f"📏 스프레드: `₩{ob['spread']:,.0f}` ({ob['spread_pct']:.4f}%)\n",
+        f"📦 매도 잔량(10호가): `{ob['total_ask']:.4f}`",
+        f"📦 매수 잔량(10호가): `{ob['total_bid']:.4f}`",
+        f"⚖️ 호가 불균형: `{ob['imbalance']}` → {imbal_emoji}\n",
+    ]
+
+    if ob["walls"]:
+        lines.append("🧱 *호가 벽 감지:*")
+        for w in ob["walls"]:
+            lines.append(f"  • {w}")
+        lines.append("")
+
+    lines += [
+        f"🔥 *체결강도 (최근 100건)*",
+        f"{strength_emoji} 매수 체결: `{ts['strength']}%` / 매도: `{100 - ts['strength']:.1f}%`",
+        f"🐋 대량 체결: `{ts['big_trades']}건` ({ts['big_trade_vol']:.4f}개)",
+    ]
+
+    return "\n".join(lines)
+
+
+# ── /orderbook [마켓] ─────────────────────────────────────────
+@authorized
+async def orderbook_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    market = context.args[0].upper() if context.args else "KRW-BTC"
+    msg = await update.message.reply_text(f"⏳ {market} 호가 분석 중...")
+    try:
+        result = await _get_orderbook_text(market)
+        await msg.edit_text(result, parse_mode="Markdown")
+    except Exception as e:
+        await msg.edit_text(f"❌ 오류: {e}")
 
 
 # ── /portfolio ────────────────────────────────────────────────
@@ -263,6 +308,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/start — 메인 메뉴\n"
         "/price [마켓] — 시세 + 기술적 지표\n"
         "/analyze [마켓] — AI 매매 신호 분석\n"
+        "/orderbook [마켓] — 호가/체결강도 분석\n"
         "/portfolio — 잔고 + 수익률\n"
         "/hotcoins — 거래량 급등 코인\n"
         "/news — 최신 뉴스/공시\n"
@@ -396,6 +442,41 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             await query.edit_message_text(f"❌ 오류: {e}")
 
+    elif data == "orderbook":
+        markets = os.getenv("MARKETS", "KRW-SOL,KRW-DOGE,KRW-ADA").split(",")
+        all_markets = list(dict.fromkeys(markets + ["KRW-BTC", "KRW-ETH", "KRW-XRP"]))
+        buttons = []
+        row = []
+        for m in all_markets:
+            coin = m.replace("KRW-", "")
+            row.append(InlineKeyboardButton(coin, callback_data=f"ob_{m}"))
+            if len(row) == 3:
+                buttons.append(row)
+                row = []
+        if row:
+            buttons.append(row)
+        buttons.append([InlineKeyboardButton("🔙 메인으로", callback_data="back")])
+        await query.edit_message_text(
+            "📊 *호가/체결강도 분석할 코인을 선택하세요:*",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(buttons),
+        )
+
+    elif data.startswith("ob_"):
+        market = data.replace("ob_", "")
+        await query.edit_message_text(f"⏳ {market} 호가 분석 중...")
+        try:
+            result = await _get_orderbook_text(market)
+            await query.edit_message_text(
+                result, parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 코인 선택으로", callback_data="orderbook"),
+                    InlineKeyboardButton("🏠 메인으로", callback_data="back"),
+                ]])
+            )
+        except Exception as e:
+            await query.edit_message_text(f"❌ 오류: {e}")
+
     elif data == "hotcoins":
         await query.edit_message_text("🔍 전체 마켓 스캔 중... (30초 정도 걸려요)")
         try:
@@ -424,8 +505,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "auto_on":
         scheduler.start(query.message.chat_id, context.application)
+        markets      = os.getenv("MARKETS", "KRW-SOL,KRW-DOGE,KRW-ADA")
+        trade_amount = os.getenv("TRADE_AMOUNT", "10000")
+        interval_min = os.getenv("INTERVAL_MIN", "1440")
+        min_conf     = os.getenv("MIN_CONFIDENCE", "85")
         await query.edit_message_text(
-            "🟢 *자동매매 시작!*\n\n설정된 마켓을 주기적으로 분석해서\nAI 신호에 따라 자동으로 매매합니다.",
+            f"🟢 *자동매매 시작!*\n\n"
+            f"📌 감시 마켓: `{markets}`\n"
+            f"⏱ 분석 주기: `{interval_min}분마다`\n"
+            f"💰 1회 매수금액: `₩{float(trade_amount):,.0f}`\n"
+            f"🎯 최소 신뢰도: `{min_conf}%`\n\n"
+            f"*적용 필터:*\n"
+            f"✅ 호가/유동성 필터\n"
+            f"✅ 체결강도 필터\n"
+            f"✅ 멀티 타임프레임 필터\n"
+            f"✅ PnL 로그 추적\n\n"
+            f"_AI가 신호를 감지하면 텔레그램으로 알려드려요!_",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("🔙 메인으로", callback_data="back")
@@ -502,12 +597,22 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(reply, parse_mode="Markdown")
 
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    """오래된 버튼 클릭 등 무시할 수 있는 오류 처리"""
+    error = str(context.error)
+    if "Query is too old" in error or "query id is invalid" in error:
+        return  # 조용히 무시
+    logger.error(f"오류 발생: {context.error}")
+
+
 # ── 메인 ─────────────────────────────────────────────────────
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start",     start))
+    app.add_error_handler(error_handler)
     app.add_handler(CommandHandler("price",     price))
     app.add_handler(CommandHandler("analyze",   analyze))
+    app.add_handler(CommandHandler("orderbook",  orderbook_cmd))
     app.add_handler(CommandHandler("portfolio", portfolio))
     app.add_handler(CommandHandler("hotcoins",  hotcoins))
     app.add_handler(CommandHandler("news",      news_cmd))
@@ -519,8 +624,13 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
 
     logger.info("🤖 업비트 자동매매 봇 v2 시작!")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    app.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=True,
+        close_loop=False,
+    )
 
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main()) if False else main()
