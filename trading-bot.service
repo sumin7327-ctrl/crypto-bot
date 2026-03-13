@@ -1,0 +1,21 @@
+[Unit]
+Description=Crypto Futures Trading Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/trading-bot
+EnvironmentFile=/root/trading-bot/.env
+ExecStart=/usr/bin/python3 /root/trading-bot/main.py
+Restart=always
+RestartSec=30
+StandardOutput=append:/var/log/trading-bot.log
+StandardError=append:/var/log/trading-bot-error.log
+
+# 안전 장치: 10분 내 5회 재시작 시 중단
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
